@@ -1,29 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import IngredientForm from './IngredientForm';
 import Search from './Search';
 import IngredientList from './IngredientList';
+import ErrorModal from '../UI/ErrorModal';
 
 const Ingredients = () => {
   const [userIngredients, setUserIngredients] = useState([]);
+  const [isLoading, setLoading] = useState(false);
+  const [error, setError] = useState();
 
   useEffect(() => {
-    fetch('https://react-hook-deeper-default-rtdb.firebaseio.com/ingredients.json')
-      .then(response => response.json())
-      .then(responseData => {
-        const loadedIngredients = [];
-        for (const key in responseData) {
-          loadedIngredients.push({
-            id: key,
-            title: responseData[key].title,
-            amount: responseData[key].amount
-          });
-        }
-        setUserIngredients(loadedIngredients);
-      });
+    console.log('RENDERING INGREDIENTS', userIngredients);
+  }, [userIngredients]);
+
+  const filteredIngredientsHandler = useCallback(filteredIngredients => {
+    setUserIngredients(filteredIngredients);
   }, []);
 
   const addIngredientHandler = ingredient => {
+    setLoading(true);
     fetch('https://react-hook-deeper-default-rtdb.firebaseio.com/ingredients.json', {
       method: 'POST',
       body: JSON.stringify(ingredient),
@@ -31,7 +27,10 @@ const Ingredients = () => {
         'Content-Type': 'application/json'
       }
     })
-      .then(response => response.json())
+      .then(response => {
+        setLoading(false);
+        response.json();
+      })
       .then(data => {
         setUserIngredients(prevIngredients => [
           ...prevIngredients,
@@ -44,17 +43,34 @@ const Ingredients = () => {
   };
 
   const removeIngredientHandler = ingredientId => {
-    setUserIngredients(prevIngredients =>
-      prevIngredients.filter(ingredient => ingredient.id !== ingredientId)
-    );
+    setLoading(true);
+    fetch(`https://react-hook-deeper-default-rtdb.firebaseio.com/ingredients/${ingredientId}.jon`, {
+      method: 'DELETE'
+    }).then(response => {
+      setLoading(false);
+      console.log(response);
+      setUserIngredients(prevIngredients =>
+        prevIngredients.filter(ingredient => ingredient.id !== ingredientId)
+      );
+    }).catch(error => {
+      setError(error.message);
+    });
+  };
+
+  const clearError = () => {
+    setError(null);
+    setLoading(false);
   };
 
   return (
     <div className="App">
-      <IngredientForm onAddIngredient={addIngredientHandler} />
+      {error && <ErrorModal onClose={clearError}>{error}</ErrorModal>}
+      <IngredientForm
+        onAddIngredient={addIngredientHandler}
+        loading={isLoading} />
 
       <section>
-        <Search />
+        <Search onLoadIngredients={filteredIngredientsHandler} />
         <IngredientList
           ingredients={userIngredients}
           onRemoveItem={removeIngredientHandler} />
